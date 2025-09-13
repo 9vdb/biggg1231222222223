@@ -14,6 +14,8 @@ https://github.com/Exunys
 
 --// Caching
 
+
+
 local game = game
 local assert, loadstring, select, next, type, typeof, pcall, xpcall, setmetatable, getmetatable, tick, warn = assert, loadstring, select, next, type, typeof, pcall, xpcall, setmetatable, getmetatable, tick, warn
 local mathfloor, mathabs, mathcos, mathsin, mathrad, mathdeg, mathmin, mathmax, mathclamp, mathrandom = math.floor, math.abs, math.cos, math.sin, math.rad, math.deg, math.min, math.max, math.clamp, math.random
@@ -1812,23 +1814,25 @@ ConfigLibrary:SaveConfig(DeveloperSettings.Path, {
 })
 end
 
--- Add this at the very bottom of ESP.lua
-ESP.Exit = function()
-    ESP.Enabled = false
-    for i, v in pairs(ESP.Objects) do
-        if typeof(v) == "table" then
-            for _, obj in pairs(v) do
-                if typeof(obj) == "userdata" and obj.Remove then
-                    obj:Remove() -- removes Drawing objects
-                end
+
+ExunysDeveloperESP = ExunysDeveloperESP or {}
+
+function ExunysDeveloperESP:Exit()
+    if self.Drawings then
+        for _, drawing in ipairs(self.Drawings) do
+            if drawing.Remove then
+                drawing:Remove()
             end
         end
+        self.Drawings = {}
     end
-    ESP.Objects = {}
-    if ESP.Connection then
-        ESP.Connection:Disconnect()
-        ESP.Connection = nil
+
+    if self.Connection then
+        self.Connection:Disconnect()
+        self.Connection = nil
     end
+
+    self.Enabled = false
 end
 
 
