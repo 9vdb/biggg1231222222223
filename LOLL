@@ -1813,3 +1813,22 @@ ConfigLibrary:SaveConfig(DeveloperSettings.Path, {
 end
 
 return Environment
+
+-- Add this at the very bottom of ESP.lua
+ESP.Exit = function()
+    ESP.Enabled = false
+    for i, v in pairs(ESP.Objects) do
+        if typeof(v) == "table" then
+            for _, obj in pairs(v) do
+                if typeof(obj) == "userdata" and obj.Remove then
+                    obj:Remove() -- removes Drawing objects
+                end
+            end
+        end
+    end
+    ESP.Objects = {}
+    if ESP.Connection then
+        ESP.Connection:Disconnect()
+        ESP.Connection = nil
+    end
+end
