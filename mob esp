@@ -34,15 +34,38 @@ local function WorldToViewportPoint(...)
 	return a,b
 end
 
---Functions--
-local function Draw(obj, props)
-	local new = Drawing.new(obj)
-	props = props or {}
-	for i,v in pairs(props) do
-		new[i] = v
-	end
-	return new
+local function Draw(objType, props)
+    local newObj = Drawing.new(objType)
+    props = props or {}
+    
+    for prop, value in pairs(props) do
+        -- Only set valid properties for the object type
+        if objType == "Line" then
+            if prop == "From" or prop == "To" or prop == "Color" or prop == "Thickness" or prop == "Visible" then
+                newObj[prop] = value
+            end
+        elseif objType == "Square" then
+            if prop == "Position" or prop == "Size" or prop == "Color" or prop == "Thickness" or prop == "Visible" or prop == "Filled" then
+                newObj[prop] = value
+            end
+        elseif objType == "Text" then
+            if prop == "Text" or prop == "Color" or prop == "Size" or prop == "Center" or prop == "Outline" or prop == "Visible" then
+                newObj[prop] = value
+            end
+        elseif objType == "Circle" then
+            if prop == "Position" or prop == "Radius" or prop == "Color" or prop == "Thickness" or prop == "Visible" or prop == "Filled" then
+                newObj[prop] = value
+            end
+        elseif objType == "Quad" then
+            if prop == "PointA" or prop == "PointB" or prop == "PointC" or prop == "PointD" or prop == "Color" or prop == "Thickness" or prop == "Visible" or prop == "Filled" then
+                newObj[prop] = value
+            end
+        end
+    end
+    
+    return newObj
 end
+
 
 function ESP.GetFOV()
 	local screenSize = workspace.CurrentCamera.ViewportSize
