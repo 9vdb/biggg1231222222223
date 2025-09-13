@@ -32,8 +32,7 @@ end
 
 --Declarations--
 local cam = workspace.CurrentCamera
-local plrs = game:GetService("Players")
-local plr = plrs.LocalPlayer
+local mobFolder = workspace:WaitForChild("Enemies") -- replace "Enemies" with your path
 local mouse = plr:GetMouse()
 
 local V3new = Vector3.new
@@ -85,9 +84,10 @@ function ESP.GetTarget(Settings, GetEnemies, hrp)
 
 		local camPos = cam.CFrame.p
 		local clPos,clPart,clModel
-		for i,v in pairs(GetEnemies()) do
-			if v.Character and v.Character.Parent then
-				local part = v.Character:FindFirstChild("Head")
+		for i,v in pairs(GetEnemies():GetChildren()) do
+    if v:FindFirstChild("HumanoidRootPart") then
+        local part = v:FindFirstChild("Head") or v:FindFirstChild("HumanoidRootPart")
+
 				if chance and math.random(1, 100) >= Settings.HeadshotChance then
 					part = v.Character:FindFirstChild(hrp)
 				end
