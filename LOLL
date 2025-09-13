@@ -1812,8 +1812,6 @@ ConfigLibrary:SaveConfig(DeveloperSettings.Path, {
 })
 end
 
-return Environment
-
 -- Add this at the very bottom of ESP.lua
 ESP.Exit = function()
     ESP.Enabled = false
@@ -1832,3 +1830,7 @@ ESP.Exit = function()
         ESP.Connection = nil
     end
 end
+
+
+return Environment
+
