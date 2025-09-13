@@ -1815,26 +1815,5 @@ ConfigLibrary:SaveConfig(DeveloperSettings.Path, {
 end
 
 
-ExunysDeveloperESP = ExunysDeveloperESP or {}
-
-function ExunysDeveloperESP:Exit()
-    if self.Drawings then
-        for _, drawing in ipairs(self.Drawings) do
-            if drawing.Remove then
-                drawing:Remove()
-            end
-        end
-        self.Drawings = {}
-    end
-
-    if self.Connection then
-        self.Connection:Disconnect()
-        self.Connection = nil
-    end
-
-    self.Enabled = false
-end
-
-
 return Environment
 
