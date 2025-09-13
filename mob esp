@@ -1,0 +1,1892 @@
+-- Fixed/cleaned Linoria example by assistant
+local repo = 'https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/'
+
+local Library, ThemeManager, SaveManager
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- Coordinates for safe place (far away)
+local SAFE_POSITION = Vector3.new(70000, 230, 70000)
+
+-- SERVICES
+local Players = game:GetService("Players")
+local StarterScripts = game:GetService("StarterPlayer").StarterPlayerScripts
+local RunService = game:GetService("RunService")
+
+-- PLAYER
+local localPlayer = Players.LocalPlayer
+
+-- GET THE ANTICORE SCRIPT
+local antiCore = StarterScripts:FindFirstChild("AntiCoreGui")
+
+-- FUNCTION TO DISABLE ANTICORE
+local function disableAntiCore()
+    if antiCore then
+        antiCore.Disabled = true
+        print("[Bypass] AntiCoreGui disabled")
+    end
+end
+
+-- FUNCTION TO RE-ENABLE ANTICORE
+local function enableAntiCore()
+    if antiCore then
+        antiCore.Disabled = false
+        print("[Bypass] AntiCoreGui re-enabled")
+    end
+end
+
+-- DISABLE ANTICORE AT START
+disableAntiCore()
+
+-- Function to create safe baseplate
+local function createSafePlace()
+    -- Check if already created
+    local existing = workspace:FindFirstChild("SafePlace")
+    if existing then return existing end
+
+    local part = Instance.new("Part")
+    part.Name = "SafePlace"
+    part.Size = Vector3.new(512, 10, 512) -- medium sized baseplate
+    part.Position = SAFE_POSITION
+    part.Anchored = true
+    part.Locked = true
+    part.TopSurface = Enum.SurfaceType.Smooth
+    part.BottomSurface = Enum.SurfaceType.Smooth
+    part.Parent = workspace
+
+    return part
+end
+
+
+
+-- Load Linoria libraries
+do
+    local ok, lib = pcall(function() return loadstring(game:HttpGet(repo .. 'Library.lua'))() end)
+    if not ok or not lib then
+        warn("Failed to load Library.lua from repo; check URL or network. Error:", lib)
+        return
+    end
+    Library = lib
+
+    local ok2, tm = pcall(function() return loadstring(game:HttpGet(repo .. 'addons/ThemeManager.lua'))() end)
+    if ok2 then ThemeManager = tm else warn("Failed to load ThemeManager:", tm) end
+
+    local ok3, sm = pcall(function() return loadstring(game:HttpGet(repo .. 'addons/SaveManager.lua'))() end)
+    if ok3 then SaveManager = sm else warn("Failed to load SaveManager:", sm) end
+end
+
+Library.ShowToggleFrameInKeybinds = true
+Library.ShowCustomCursor = true
+Library.NotifySide = "Left"
+
+local Window = Library:CreateWindow({
+	Title = 'GGS Main Menu',
+	Center = true,
+	AutoShow = true,
+	Resizable = true,
+	ShowCustomCursor = false,
+	NotifySide = "Left",
+	TabPadding = 8,
+	MenuFadeTime = 0.2
+})
+
+local Tabs = {
+	Main = Window:AddTab('Main'),
+    ['Automation'] = Window:AddTab('Automation'),
+    ['FruitConfigs'] = Window:AddTab('FruitConfigs'),
+    ['ESP'] = Window:AddTab('ESP'),
+    ['UI Settings'] = Window:AddTab('UI Settings')
+
+}
+
+local ESPBox = Tabs.ESP:AddLeftGroupbox("ESP")
+
+local ESPLoaded = false
+local ESP
+
+ESPBox:AddToggle("source esp toggle", {
+    Text = "Enable ESP",
+    Default = false,
+    Callback = function(state)
+        if not ESPLoaded then
+            local success, espEnv = pcall(function()
+                return loadstring(game:HttpGet("https://kiriot22.com/goodbye/ESP.lua", true))()
+            end)
+
+            if success and espEnv then
+                ESP = espEnv
+                ESPLoaded = true
+            else
+                warn("Failed to load ESP:", espEnv)
+                return
+            end
+        end
+
+        
+        if ESP then
+            ESP:Toggle(state)
+        end
+    end
+})
+
+local MobESPGroup = Tabs.ESP:AddLeftGroupbox("Mob ESP")
+
+
+local success, ESP = pcall(function()
+    return loadstring(game:HttpGet("https://kiriot22.com/goodbye/ESP.lua", true))()
+end)
+
+if not success or not ESP then
+    warn("Failed to load ESP:", ESP)
+    return
+end
+
+
+ESP.Boxes = true
+ESP.Names = true
+ESP.Tracers = true
+ESP.TeamColor = false
+ESP.Color = Color3.fromRGB(255, 0, 0) 
+ESP.HrpName = "HumanoidRootPart" 
+ESP.AttachShift = 1
+
+-- Add all current enemies
+local function addEnemies(parent)
+    ESP:AddObjectListener(parent, {
+        Type = "Model",
+        PrimaryPart = function(model)
+            return model:FindFirstChild("HumanoidRootPart") or model:FindFirstChildWhichIsA("BasePart")
+        end,
+        Name = function(model)
+            return model.Name
+        end,
+        RenderInNil = false
+    })
+end
+
+addEnemies(workspace.Enemies)
+workspace.Enemies.ChildAdded:Connect(function(child)
+    addEnemies(workspace.Enemies)
+end)
+
+MobESPGroup:AddToggle('MobESPEnable', {
+    Text = 'Enable Mob ESP',
+    Default = false,
+    Callback = function(Value)
+        ESP:Toggle(Value)
+    end
+})
+
+MobESPGroup:AddDropdown('MobESPColor', {
+    Text = 'ESP Color',
+    Values = {"Red", "Green", "Blue", "Yellow", "Orange"},
+    Default = 1,
+    Callback = function(Value)
+        local colors = {
+            Red = Color3.fromRGB(255,0,0),
+            Green = Color3.fromRGB(0,255,0),
+            Blue = Color3.fromRGB(0,0,255),
+            Yellow = Color3.fromRGB(255,255,0),
+            Orange = Color3.fromRGB(255,165,0)
+        }
+        ESP.Color = colors[Value]
+    end
+})
+
+
+
+
+
+
+local FruitGroupBox = Tabs.FruitConfigs:AddLeftGroupbox('Fruit Sniper Settings')
+
+-- SIMPLE Fruit detector + dropdown + teleport button (Linoria)
+local commonFruits = { "Slip", "Hot", "Clear", "Spring", "Swim", "Spin", "Luck" }
+local uncommonFruits = { "Bomb", "Smelt", "Diamond", "Barrier" }
+local rareFruits = { "Ope", "Venom", "Candy", "Chilly", "Flare", "Sand", "Rumble", "Magma" }
+local ultraRareFruits = { "Dark", "Quake", "Phoenix" }
+
+-- quick lookup tables
+local fruitLookupCommon, fruitLookupUncommon, fruitLookupRare, fruitLookupUltra = {}, {}, {}, {}
+for _, f in ipairs(commonFruits) do fruitLookupCommon[f.." Fruit"] = true end
+for _, f in ipairs(uncommonFruits) do fruitLookupUncommon[f.." Fruit"] = true end
+for _, f in ipairs(rareFruits) do fruitLookupRare[f.." Fruit"] = true end
+for _, f in ipairs(ultraRareFruits) do fruitLookupUltra[f.." Fruit"] = true end
+
+-- state
+local detectedFruits = {}     -- displayName -> Instance
+local instanceToName = {}     -- Instance -> displayName
+local selectedFruitName = nil
+
+-- helper: update dropdown values
+local function updateDropdown(dropdown)
+    local names = {}
+    for name, _ in pairs(detectedFruits) do table.insert(names, name) end
+    table.sort(names)
+    if dropdown and dropdown.SetValues then
+        dropdown:SetValues(names)
+    end
+    if selectedFruitName then
+        local found = false
+        for _, n in ipairs(names) do if n == selectedFruitName then found = true break end end
+        if not found then selectedFruitName = nil end
+    end
+end
+
+local function makeUniqueName(base)
+    local name = base
+    local i = 1
+    while detectedFruits[name] do
+        i = i + 1
+        name = base .. " (" .. i .. ")"
+    end
+    return name
+end
+
+local function addFruitInstance(inst, dropdown)
+    if instanceToName[inst] then return end
+    local display = makeUniqueName(inst.Name)
+    detectedFruits[display] = inst
+    instanceToName[inst] = display
+    Library:Notify("Detected: " .. display, 3)
+    updateDropdown(dropdown)
+end
+
+local function removeFruitInstance(inst, dropdown)
+    local name = instanceToName[inst]
+    if not name then return end
+    detectedFruits[name] = nil
+    instanceToName[inst] = nil
+    if selectedFruitName == name then selectedFruitName = nil end
+    updateDropdown(dropdown)
+end
+
+-- Create dropdown (empty initially)
+local fruitDropdown = FruitGroupBox:AddDropdown('fruitDropdown', {
+    Values = {},
+    Default = nil,
+    Multi = false,
+    Text = 'Select Fruit',
+    Tooltip = 'Choose a detected fruit',
+    Callback = function(val) selectedFruitName = val end
+})
+
+-- helper to create toggles dynamically
+local function createFruitToggle(name, lookupTable)
+    local addedConn, removedConn
+    FruitGroupBox:AddToggle(name, {
+        Text = "Detect " .. name:gsub("FruitSniper", ""):gsub("([A-Z])", " %1"),
+        Default = false,
+        Tooltip = "Notifies and lists " .. name:gsub("FruitSniper", ""):lower() .. " fruits in workspace",
+        Callback = function(state)
+            if state then
+                for _, obj in pairs(workspace:GetChildren()) do
+                    if lookupTable[obj.Name] then addFruitInstance(obj, fruitDropdown) end
+                end
+                addedConn = workspace.ChildAdded:Connect(function(obj)
+                    if lookupTable[obj.Name] then addFruitInstance(obj, fruitDropdown) end
+                end)
+                removedConn = workspace.ChildRemoved:Connect(function(obj)
+                    if instanceToName[obj] then removeFruitInstance(obj, fruitDropdown) end
+                end)
+            else
+                if addedConn then addedConn:Disconnect() addedConn = nil end
+                if removedConn then removedConn:Disconnect() removedConn = nil end
+                detectedFruits = {}
+                instanceToName = {}
+                selectedFruitName = nil
+                updateDropdown(fruitDropdown)
+            end
+        end
+    })
+end
+
+
+
+-- create all toggles
+createFruitToggle("commonFruitSniper", fruitLookupCommon)
+createFruitToggle("uncommonFruitSniper", fruitLookupUncommon)
+createFruitToggle("rareFruitSniper", fruitLookupRare)
+createFruitToggle("ultraRareFruitSniper", fruitLookupUltra)
+
+-- Teleport button
+FruitGroupBox:AddButton('Teleport to Selected Fruit', function()
+    if not selectedFruitName then
+        Library:Notify("Select a fruit first.", 3)
+        return
+    end
+    local inst = detectedFruits[selectedFruitName]
+    if not inst or not inst.Parent then
+        Library:Notify("That fruit no longer exists.", 3)
+        if inst then removeFruitInstance(inst, fruitDropdown) end
+        return
+    end
+    local targetPart = inst.PrimaryPart
+        or inst:FindFirstChildWhichIsA("BasePart")
+        or inst:FindFirstChild("Handle")
+        or inst:FindFirstChildWhichIsA("MeshPart")
+    if not targetPart or not targetPart:IsA("BasePart") then
+        Library:Notify("No valid part to teleport to.", 3)
+        return
+    end
+    local player = game.Players.LocalPlayer
+    local char = player.Character or player.CharacterAdded:Wait()
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+        or char.PrimaryPart
+        or char:FindFirstChildWhichIsA("BasePart")
+    if not hrp then
+        Library:Notify("No character part found.", 3)
+        return
+    end
+    local ok, err = pcall(function() hrp.CFrame = targetPart.CFrame + Vector3.new(0, 5, 0) end)
+    if ok then Library:Notify("Teleported to " .. selectedFruitName, 3)
+    else Library:Notify("Teleport failed.", 3) end
+end)
+
+
+local FruitGroupBox2 = Tabs.FruitConfigs:AddRightGroupbox('Player Fruit Sniper Settings')
+
+
+-- PLAYER Fruit Detector + Teleport
+
+local detectedPlayerFruits = {}
+local selectedPlayerFruit = nil
+local scanning = false
+
+-- Hardcoded fruit list
+local fruitList = {
+    "Slip Fruit", "Hot Fruit", "Clear Fruit", "Spring Fruit", "Swim Fruit", "Spin Fruit", "Luck Fruit", -- Commons
+    "Bomb Fruit", "Smelt Fruit", "Diamond Fruit", "Barrier Fruit",                                         -- Uncommons
+    "Ope Fruit", "Venom Fruit", "Candy Fruit", "Chilly Fruit", "Flare Fruit", "Sand Fruit", "Rumble Fruit", "Magma Fruit", -- Rares
+    "Dark Fruit", "Quake Fruit", "Phoenix Fruit"                                                            -- Ultra rares
+}
+
+local fruitLookup = {}
+for _, name in ipairs(fruitList) do
+    fruitLookup[name] = true
+end
+
+-- Dropdown
+local playerFruitDropdown = FruitGroupBox2:AddDropdown('playerFruitDropdown', {
+    Values = {},
+    Default = nil,
+    Multi = false,
+    Text = 'Select Player Fruit',
+    Tooltip = 'Choose a detected fruit in a player backpack',
+    Callback = function(val) selectedPlayerFruit = val end
+})
+
+local function updatePlayerDropdown()
+    local names = {}
+    for name, _ in pairs(detectedPlayerFruits) do
+        table.insert(names, name)
+    end
+    table.sort(names)
+    playerFruitDropdown:SetValues(names)
+    if selectedPlayerFruit and not detectedPlayerFruits[selectedPlayerFruit] then
+        selectedPlayerFruit = nil
+    end
+end
+
+local function makeUniquePlayerName(base)
+    local name = base
+    local i = 1
+    while detectedPlayerFruits[name] do
+        i = i + 1
+        name = base .. " (" .. i .. ")"
+    end
+    return name
+end
+
+local function addPlayerFruit(player, item)
+    local display = makeUniquePlayerName(player.Name .. " - " .. item.Name)
+    detectedPlayerFruits[display] = {player = player, fruit = item}
+end
+
+local function removePlayerFruit(display)
+    detectedPlayerFruits[display] = nil
+    if selectedPlayerFruit == display then selectedPlayerFruit = nil end
+end
+
+-- Scan function
+local function scanPlayerFruits()
+    while scanning do
+        for _, plr in pairs(game.Players:GetPlayers()) do
+            if plr ~= game.Players.LocalPlayer then
+                local backpack = plr:FindFirstChild("Backpack")
+                if backpack then
+                    for _, item in pairs(backpack:GetChildren()) do
+                        if fruitLookup[item.Name] then
+                            local exists = false
+                            for _, info in pairs(detectedPlayerFruits) do
+                                if info.player == plr and info.fruit == item then
+                                    exists = true
+                                    break
+                                end
+                            end
+                            if not exists then
+                                addPlayerFruit(plr, item)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        updatePlayerDropdown()
+        task.wait(1)
+    end
+end
+
+-- Toggle
+FruitGroupBox2:AddToggle('scanPlayerFruits', {
+    Text = "Detect Player Fruits",
+    Default = false,
+    Tooltip = "Scans all player backpacks and lists all fruits safely",
+    Callback = function(state)
+        scanning = state
+        if scanning then
+            task.spawn(scanPlayerFruits)
+        else
+            detectedPlayerFruits = {}
+            selectedPlayerFruit = nil
+            updatePlayerDropdown()
+        end
+    end
+})
+
+-- Teleport
+FruitGroupBox2:AddButton('Teleport to Player with Fruit', function()
+    if not selectedPlayerFruit then
+        Library:Notify("Select a player fruit first.", 3)
+        return
+    end
+    local info = detectedPlayerFruits[selectedPlayerFruit]
+    if not info or not info.player.Character then
+        Library:Notify("Player or fruit no longer exists.", 3)
+        removePlayerFruit(selectedPlayerFruit)
+        updatePlayerDropdown()
+        return
+    end
+
+    local char = info.player.Character
+    local hrp = char:FindFirstChild("HumanoidRootPart") or char.PrimaryPart or char:FindFirstChildWhichIsA("BasePart")
+    if not hrp then
+        Library:Notify("No character part found.", 3)
+        return
+    end
+
+    local player = game.Players.LocalPlayer
+    local localChar = player.Character or player.CharacterAdded:Wait()
+    local localHrp = localChar:FindFirstChild("HumanoidRootPart") or localChar.PrimaryPart or localChar:FindFirstChildWhichIsA("BasePart")
+    if not localHrp then
+        Library:Notify("No local character part found.", 3)
+        return
+    end
+
+    local ok, _ = pcall(function()
+        localHrp.CFrame = hrp.CFrame + Vector3.new(0, 5, 0)
+    end)
+    if ok then
+        Library:Notify("Teleported to " .. info.player.Name, 3)
+    else
+        Library:Notify("Teleport failed.", 3)
+    end
+end)
+
+-- Spectate toggle
+local spectating = false
+
+FruitGroupBox2:AddToggle('SpectatePlayerWithFruit', {
+    Text = "Spectate Player",
+    Default = false,
+    Tooltip = "Spectate the player whose fruit is selected",
+    Callback = function(Value)
+        spectating = Value
+        local localPlayer = game.Players.LocalPlayer
+
+        if spectating and selectedPlayerFruit then
+            local info = detectedPlayerFruits[selectedPlayerFruit]
+            if info and info.player and info.player.Character then
+                local targetHumanoid = info.player.Character:FindFirstChild("Humanoid")
+                if targetHumanoid then
+                    workspace.CurrentCamera.CameraSubject = targetHumanoid
+                end
+            end
+        else
+            if localPlayer and localPlayer.Character then
+                local localHumanoid = localPlayer.Character:FindFirstChild("Humanoid")
+                if localHumanoid then
+                    workspace.CurrentCamera.CameraSubject = localHumanoid
+                end
+            end
+        end
+    end
+})
+
+-- Optional: auto-update camera if selectedPlayerFruit changes while spectating
+playerFruitDropdown.Callback = function(val)
+    selectedPlayerFruit = val
+    if spectating and selectedPlayerFruit then
+        local info = detectedPlayerFruits[selectedPlayerFruit]
+        if info and info.player and info.player.Character then
+            local targetHumanoid = info.player.Character:FindFirstChild("Humanoid")
+            if targetHumanoid then
+                workspace.CurrentCamera.CameraSubject = targetHumanoid
+            end
+        end
+    end
+end
+
+
+local LeftGroupBox = Tabs.Main:AddLeftGroupbox('script maker thingy')
+
+LeftGroupBox:AddToggle('positionLocatorToggle', {
+	Text = 'enable position locator',
+	Tooltip = 'only for making the script lol',
+	Default = false,
+	Callback = function(Value)
+		local player = game.Players.LocalPlayer
+    local mouse = player:GetMouse()
+    local connection 
+
+    if Value then
+        
+        connection = mouse.Button1Down:Connect(function()
+            if mouse.Target then
+                print("Part Name:", mouse.Target.Name)
+                print("Full Path:", mouse.Target:GetFullName())
+                print("Position:", mouse.Target.Position)
+            end
+        end)
+    else
+        
+        if connection then
+            connection:Disconnect()
+            connection = nil
+        end
+    end
+end
+	
+})
+
+local automationGroupBox = Tabs.Automation:AddRightGroupbox('Automation')
+local autoFarming = false
+
+automationGroupBox:AddToggle('autoFarmToggle', { 
+    Text = 'Auto Farm smoothies (very possible ban)', 
+    Tooltip = 'Ban from this is very likely. Use with caution', 
+    Default = false, 
+    Callback = function(Value) 
+        autoFarming = Value
+
+        if Value then
+            task.spawn(function()
+                local playerCheckRange = 120 -- skip barrels if another player is nearby
+                local player = game.Players.LocalPlayer
+
+                while autoFarming do
+                    local playerDetails = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                    if not playerDetails then task.wait(0.5) continue end
+
+                    local crates = workspace.Barrels.Crates:GetChildren()
+
+                    -- Collect barrels
+                    for _, barrel in pairs(crates) do
+                        if not autoFarming then break end
+                        if barrel and barrel.Parent then
+                            local skipBarrel = false
+
+                            for _, otherPlayer in pairs(game.Players:GetPlayers()) do
+                                if otherPlayer ~= player and otherPlayer.Character and otherPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                                    local otherHRP = otherPlayer.Character.HumanoidRootPart
+                                    if (otherHRP.Position - barrel.Position).Magnitude < playerCheckRange then
+                                        skipBarrel = true
+                                        break
+                                    end
+                                end
+                            end
+
+                            if not skipBarrel then
+                                playerDetails.CFrame = barrel.CFrame
+                                task.wait(0.05 + math.random(5,15)/100)
+
+                                local detector = barrel:FindFirstChildOfClass("ClickDetector")
+                                if detector and (playerDetails.Position - barrel.Position).Magnitude < 12 then
+                                    for i = 1, math.random(1,3) do
+                                        if not autoFarming then break end
+                                        fireclickdetector(detector)
+                                        task.wait(math.random(12,35)/100)
+                                    end
+                                end
+                                task.wait(0.1 + math.random(5,10)/100)
+                            end
+                        end
+                    end
+
+                    if not autoFarming then break end
+
+                    -- Teleport to JuicingBowl
+                    playerDetails.CFrame = CFrame.new(1234, 221, -3245)
+                    task.wait(0.2)
+
+                    local function findClickDetector(part)
+                        if part:IsA("ClickDetector") then return part end
+                        for _, child in pairs(part:GetChildren()) do
+                            local found = findClickDetector(child)
+                            if found then return found end
+                        end
+                        return nil
+                    end
+
+                    local Mixer1 = workspace:FindFirstChild("Mixer1", true)
+                    if Mixer1 then
+                        local detector = findClickDetector(Mixer1)
+                        if detector then fireclickdetector(detector) end
+                    end
+
+                    task.wait(1)
+
+                    -- Teleport to Safe Place
+                    playerDetails.CFrame = CFrame.new(-3134, 333.4, -4101)
+
+                    local Players = game:GetService("Players")
+                    local LocalPlayer = Players.LocalPlayer
+
+                    -- Wait for the player's UserData folder
+                    local userIdFolder = workspace:WaitForChild("UserData"):FindFirstChild("User_" .. LocalPlayer.UserId)
+
+                    if userIdFolder then
+                        local remote = userIdFolder:FindFirstChild("ChallengesRemote")
+                        if remote then
+                            local arguments = {
+                                [1] = "Claim",
+                                [2] = "Challenge13"
+                            }
+                            remote:FireServer(unpack(arguments))
+                        end
+                    end
+
+                    task.wait(6)
+
+                    -- Use every tool in backpack
+                    local character = player.Character or player.CharacterAdded:Wait()
+                    local backpack = player:WaitForChild("Backpack")
+
+                    for _, tool in pairs(backpack:GetChildren()) do
+                        if not autoFarming then break end
+                        if tool:IsA("Tool") then
+                            task.spawn(function()
+                                tool.Parent = character
+                                task.wait(0.2 + math.random(0,10)/100)
+                                tool:Activate()
+                                task.wait(0.3 + math.random(0,10)/100)
+                                tool.Parent = backpack
+                            end)
+                        end
+                    end
+                end -- while autoFarming
+            end) -- task.spawn
+        end
+    end 
+})
+
+
+
+
+local autoHakiEnabled = false
+
+automationGroupBox:AddToggle('autoHaki', {
+    Text = 'Auto Haki Farm',
+    Tooltip = 'spams R on your keyboard',
+    Default = false,
+    Callback = function(Value)
+        autoHakiEnabled = Value -- update state
+
+        -- If the toggle is turned on, start the loop
+        if Value then
+            spawn(function()
+                while autoHakiEnabled do
+                    local Players = game:GetService("Players")
+                    local player = Players.LocalPlayer
+
+                    -- Find the user's folder dynamically
+                    local userIdFolder = workspace:WaitForChild("UserData"):FindFirstChild("User_" .. player.UserId)
+
+                    if userIdFolder then
+                        -- Find the remote event dynamically
+                        local remote = userIdFolder:FindFirstChild("III")
+                        if remote and remote:IsA("RemoteEvent") then
+                            local arguments = {
+                                [1] = "On",
+                                [2] = 9
+                            }
+                            remote:FireServer(unpack(arguments))
+                        end
+                    end
+
+                    task.wait(0.1) 
+                end
+            end)
+        end
+    end
+})
+
+
+
+
+
+local autoCompass = false
+
+automationGroupBox:AddToggle('autoCompassToggle', { 
+    Text = 'Auto Grab Compasses', 
+    Tooltip = 'this only grabs the compasses', 
+    Default = false, 
+    Callback = function(Value) 
+        autoCompass = Value
+
+        if autoCompass then
+            task.spawn(function()
+                local Players = game:GetService("Players")
+                local player  = Players.LocalPlayer
+                local CompassNPC = workspace.Merchants.QuestMerchant
+                local compassNPCClickDetector = workspace.Merchants.QuestMerchant.Clickable.ClickDetector
+                local userIdFolder = workspace:WaitForChild("UserData"):WaitForChild("User_" .. player.UserId)
+
+                while autoCompass do
+                    if userIdFolder:FindFirstChild("SamQuest") and userIdFolder.SamQuest.Value == 0 then
+                        local hrp = player.Character:WaitForChild("HumanoidRootPart")
+                        local playerCurrentLocation = hrp.Position
+
+                        -- teleport to NPC
+                        hrp.CFrame = CompassNPC.Head.CFrame * CFrame.new(0, -20, 0)
+                        task.wait(0.3)
+
+                        -- interact
+                        fireclickdetector(compassNPCClickDetector)
+                        task.wait(0.2)
+
+                        -- fire remote
+                        local remote = game:GetService("ReplicatedStorage").Connections.Claim_Sam
+                        remote:FireServer("Claim1")
+
+                        task.wait(0.2)
+
+                        -- teleport back
+                        hrp.CFrame = CFrame.new(playerCurrentLocation + Vector3.new(0, 10, 0))
+                    end
+
+                    task.wait(1) -- ✅ important: prevents crash
+                end
+            end)
+        end
+    end
+})
+
+
+local player = game.Players.LocalPlayer
+local autoGrabCompass = false
+
+automationGroupBox:AddToggle('autoGrabCompassToggle', { 
+    Text = 'Auto Steal Compasses', 
+    Tooltip = 'Automatically teleports Compass to you', 
+    Default = false, 
+    Callback = function(Value) 
+        autoGrabCompass = Value
+
+        if Value then
+            task.spawn(function()
+                while autoGrabCompass do
+                    local character = player.Character or player.CharacterAdded:Wait()
+                    local hrp = character:FindFirstChild("HumanoidRootPart")
+                    if not hrp then task.wait(0.5) continue end
+
+                    -- Grab existing Compass objects
+                    for _, obj in pairs(workspace:GetChildren()) do
+                        if not autoGrabCompass then break end
+                        if obj.Name == "Compass" and obj:FindFirstChild("Handle") then
+                            local handle = obj.Handle
+                            if handle:IsA("BasePart") then
+                                handle.Anchored = false
+                                handle.CFrame = hrp.CFrame + Vector3.new(0,3,0)
+                            end
+                        end
+                    end
+
+                    -- Listen for new Compass objects
+                    workspace.ChildAdded:Connect(function(child)
+                        if autoGrabCompass and child.Name == "Compass" and child:FindFirstChild("Handle") then
+                            local handle = child.Handle
+                            if handle:IsA("BasePart") then
+                                local char = player.Character or player.CharacterAdded:Wait()
+                                local hrp2 = char:FindFirstChild("HumanoidRootPart")
+                                if hrp2 then
+                                    handle.Anchored = false
+                                    handle.CFrame = hrp2.CFrame + Vector3.new(0,3,0)
+                                end
+                            end
+                        end
+                    end)
+
+                    task.wait(0.2)
+                end
+            end)
+        end
+    end
+})
+
+
+local player = game.Players.LocalPlayer
+local autoGrabBoxes = false
+local boxNames = {"Common Box", "Uncommon Box", "Rare Box", "Ultra Rare Box"}
+
+automationGroupBox:AddToggle('autoGrabBoxesToggle', { 
+    Text = 'Auto Steal Boxes', 
+    Tooltip = 'Automatically teleports Common, Uncommon, Rare, and Ultra Rare Boxes to you', 
+    Default = false, 
+    Callback = function(Value) 
+        autoGrabBoxes = Value
+
+        if Value then
+            task.spawn(function()
+                while autoGrabBoxes do
+                    local character = player.Character or player.CharacterAdded:Wait()
+                    local hrp = character:FindFirstChild("HumanoidRootPart")
+                    if not hrp then task.wait(0.5) continue end
+
+                    -- Grab existing boxes
+                    for _, obj in pairs(workspace:GetChildren()) do
+                        if not autoGrabBoxes then break end
+                        if table.find(boxNames, obj.Name) and obj:FindFirstChild("Handle") then
+                            local handle = obj.Handle
+                            if handle:IsA("BasePart") then
+                                handle.Anchored = false
+                                handle.CFrame = hrp.CFrame + Vector3.new(0,3,0)
+                            end
+                        end
+                    end
+
+                    -- Listen for new boxes
+                    workspace.ChildAdded:Connect(function(child)
+                        if autoGrabBoxes and table.find(boxNames, child.Name) and child:FindFirstChild("Handle") then
+                            local handle = child.Handle
+                            if handle:IsA("BasePart") then
+                                local char = player.Character or player.CharacterAdded:Wait()
+                                local hrp2 = char:FindFirstChild("HumanoidRootPart")
+                                if hrp2 then
+                                    handle.Anchored = false
+                                    handle.CFrame = hrp2.CFrame + Vector3.new(0,3,0)
+                                end
+                            end
+                        end
+                    end)
+
+                    task.wait(0.2)
+                end
+            end)
+        end
+    end
+})
+
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Workspace = game:GetService("Workspace")
+
+-- Fast teleport function
+local function teleportTo(pos)
+    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if hrp and pos then
+        hrp.CFrame = CFrame.new(pos + Vector3.new(0,5,0))
+    end
+end
+
+-- Get compass arrow
+local function getCompassArrow()
+    local ja = Workspace:FindFirstChild("JaIenxb")
+    if ja then
+        local compass = ja:FindFirstChild("Compass")
+        if compass then
+            return compass:FindFirstChild("CompassArrow")
+        end
+    end
+    return nil
+end
+
+-- Get 4 positions around a tree
+local function positionsAroundTree(tree)
+    local posList = {}
+    local center = tree.PrimaryPart and tree.PrimaryPart.Position or (tree:FindFirstChildWhichIsA("BasePart") and tree:FindFirstChildWhichIsA("BasePart").Position)
+    if not center then return posList end
+    local offset = 5
+    table.insert(posList, center + Vector3.new(offset,0,0))
+    table.insert(posList, center + Vector3.new(-offset,0,0))
+    table.insert(posList, center + Vector3.new(0,0,offset))
+    table.insert(posList, center + Vector3.new(0,0,-offset))
+    return posList
+end
+
+-- Main button
+local Groupbox = Tabs.Main:AddLeftGroupbox("Compass Finder WIP DOESNT WORK")
+
+Groupbox:AddButton("compass finder (doesnt work for now)", function()
+    while true do
+        local arrow = getCompassArrow()
+        if not arrow then
+            print("Compass missing. Stopping.")
+            break
+        end
+
+        local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if not hrp then break end
+
+        -- Raycast from HRP along compass direction
+        local origin = arrow.Position
+        local direction = arrow.CFrame.LookVector * 100 -- cast 1000 studs ahead
+
+        local params = RaycastParams.new()
+        params.FilterDescendantsInstances = {workspace.Trees}
+        params.FilterType = Enum.RaycastFilterType.Whitelist
+        local result = Workspace:Raycast(origin, direction, params)
+
+        if result and result.Instance then
+            local hitPart = result.Instance
+            local tree = hitPart.Parent
+            if tree then
+                print("Tree detected:", tree.Name)
+                -- teleport to spawners if exist
+                local spawners = {}
+                for _, child in ipairs(tree:GetChildren()) do
+                    if child.Name == "Spawner" and child:IsA("BasePart") then
+                        table.insert(spawners, child)
+                    end
+                end
+
+                if #spawners > 0 then
+                    for _, spawner in ipairs(spawners) do
+                        teleportTo(spawner.Position)
+                    end
+                else
+                    -- teleport around tree
+                    local positions = positionsAroundTree(tree)
+                    for _, pos in ipairs(positions) do
+                        teleportTo(pos)
+                    end
+                end
+            else
+                print("Ray hit part:", hitPart.Name, "not a tree")
+            end
+        else
+            print("No tree detected along compass ray")
+            break
+        end
+
+        wait(0.05) -- small pause before next iteration
+    end
+end)
+
+automationGroupBox:AddToggle('autoCollectChests', { 
+    Text = 'Auto Farm Chests', 
+    Tooltip = 'TPs you to chests', 
+    Default = false, 
+    Callback = function(Value) 
+    if Value == true then
+        local autoChests = true
+    
+        while autoChests == true do 
+        local chests = game.Workspace.Chests:GetChildren()
+         local player = game.Players.LocalPlayer
+    local playerDetails = player.Character:WaitForChild("HumanoidRootPart")
+    
+ --local touchIntrest = chests:FindFirstChild("TreasureChestPart")
+    
+        for _, chest in pairs(chests) do 
+            local TreasureChestPart = chest:FindFirstChild("TreasureChestPart")
+            playerDetails.CFrame = TreasureChestPart.CFrame
+            task.wait(0.25)
+        end
+    
+    task.wait(.5)
+    end
+
+
+        end
+    
+end})
+
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local VirtualUser = game:GetService("VirtualUser")
+
+local player = Players.LocalPlayer
+local autoClickConnection
+local antiAFKConnection
+
+automationGroupBox:AddToggle("AutoClickerToggle", {
+    Text = "Auto Clicker (Anti-AFK)",
+    Tooltip = "Auto activates held tool + prevents AFK kick",
+    Default = false,
+    Callback = function(Value)
+        if Value then
+            -- ✅ Auto Clicker ON
+            if not autoClickConnection then
+                autoClickConnection = RunService.Heartbeat:Connect(function()
+                    local tool = player.Character and player.Character:FindFirstChildOfClass("Tool")
+                    if tool then
+                        tool:Activate()
+                    end
+                end)
+            end
+
+            -- ✅ Anti-AFK ON
+            if not antiAFKConnection then
+                antiAFKConnection = player.Idled:Connect(function()
+                    VirtualUser:CaptureController()
+                    VirtualUser:ClickButton2(Vector2.new())
+                    warn("Anti-AFK triggered: simulated activity")
+                end)
+            end
+        else
+            -- ❌ Auto Clicker OFF
+            if autoClickConnection then
+                autoClickConnection:Disconnect()
+                autoClickConnection = nil
+            end
+
+            -- ❌ Anti-AFK OFF
+            if antiAFKConnection then
+                antiAFKConnection:Disconnect()
+                antiAFKConnection = nil
+            end
+        end
+    end
+})
+
+local autoRayleigh = false
+
+automationGroupBox:AddToggle("autoRayleighToggle", {
+    Text = "Auto Rayleigh Teleport",
+    Default = false,
+    Callback = function(Value)
+        Tooltip = 'Checks and TPs you every minuite to him'
+        autoRayleigh = Value
+
+        if Value then
+            task.spawn(function()
+                local player = game.Players.LocalPlayer
+                while autoRayleigh do
+                    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                    local merchants = workspace:FindFirstChild("Merchants")
+                    local rayleigh = merchants and merchants:FindFirstChild("QuestHakiMerchant")
+
+                    if hrp and rayleigh and rayleigh:FindFirstChild("HumanoidRootPart") then
+                        hrp.CFrame = rayleigh.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
+                    end
+                    task.wait(60) -- wait 1 minute before checking again
+                end
+            end)
+        end
+    end
+})
+
+
+--local MyButton = LeftGroupBox:AddButton({
+--	Text = 'Button',
+--	Func = function()
+--		print('You clicked a button!')
+	--	Library:Notify("This is a notification")
+	--end,
+--	Tooltip = 'This is the main button',
+--})
+
+LeftGroupBox:AddDivider()
+
+LeftGroupBox:AddSlider('WalkSpeed', {
+	Text = 'Walk speed (inconsistent for now)',
+	Default = 16, 
+	Min = 16,
+	Max = 200,
+	Rounding = 0,
+	Callback = function(Value)
+        while Value do 
+            local plr = game.Players.LocalPlayer
+		if not plr then return end
+		    local char = plr.Character
+		if not char then return end
+		    local humanoid = char:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			humanoid.WalkSpeed = Value
+            task.wait(0.01)
+		    end
+        end
+		
+	end,
+	Tooltip = 'Player walk speed'
+})
+
+LeftGroupBox:AddSlider('JumpPower', {
+	Text = 'Jump Power',
+	Default = 50,
+	Min = 0,
+	Max = 300,
+	Rounding = 0,
+	Callback = function(Value)
+		local plr = game.Players.LocalPlayer
+		if not plr then return end
+		local char = plr.Character
+		if not char then return end
+		local humanoid = char:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			if humanoid.JumpPower ~= nil then
+				humanoid.JumpPower = Value
+			elseif humanoid.JumpHeight ~= nil then
+				humanoid.JumpHeight = Value
+			end
+		end
+	end,
+	Tooltip = 'Player jump power'
+})
+
+
+
+
+-- Add a toggle to your Linoria Groupbox
+-- robust noclip toggle for Linoria
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+if not LocalPlayer then
+    warn("Noclip toggle must run client-side (LocalScript). Aborting noclip setup.")
+    return
+end
+
+local noclipConnection = nil
+local charAddedConnection = nil
+local originalCollisions = {} -- map part -> original CanCollide
+
+local function applyNoClipToCharacter(character)
+    if not character then return end
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+            -- store original value only once
+            if originalCollisions[part] == nil then
+                local ok, val = pcall(function() return part.CanCollide end)
+                originalCollisions[part] = ok and val or true
+            end
+            pcall(function() part.CanCollide = false end)
+        end
+    end
+end
+
+local function restoreCollisions()
+    for part, orig in pairs(originalCollisions) do
+        if part and part.Parent then
+            pcall(function() part.CanCollide = orig end)
+        end
+    end
+    originalCollisions = {}
+end
+
+local function enableNoClip()
+    -- ensure no duplicate connections
+    if noclipConnection then noclipConnection:Disconnect(); noclipConnection = nil end
+    if charAddedConnection then charAddedConnection:Disconnect(); charAddedConnection = nil end
+
+    -- apply to current character immediately
+    applyNoClipToCharacter(LocalPlayer.Character)
+
+    -- keep applying while alive (covers new/hard-to-find parts)
+    noclipConnection = RunService.Stepped:Connect(function()
+        local char = LocalPlayer.Character
+        if char then
+            applyNoClipToCharacter(char)
+        end
+    end)
+
+    -- reapply when respawning
+    charAddedConnection = LocalPlayer.CharacterAdded:Connect(function(char)
+        -- small delay to let character parts load
+        task.wait(0.1)
+        applyNoClipToCharacter(char)
+    end)
+
+    print("[NoClip] Enabled")
+end
+
+local function disableNoClip()
+    if noclipConnection then noclipConnection:Disconnect(); noclipConnection = nil end
+    if charAddedConnection then charAddedConnection:Disconnect(); charAddedConnection = nil end
+
+    restoreCollisions()
+    print("[NoClip] Disabled and collisions restored")
+end
+
+-- Add the Linoria toggle (replace groupbox variable if needed)
+LeftGroupBox:AddToggle("NoClipToggle", {
+    Text = "Noclip",
+    Default = false,
+    Callback = function(enabled)
+        if enabled then
+            enableNoClip()
+        else
+            disableNoClip()
+        end
+    end
+})
+
+
+
+local DropdownGroupBox = Tabs.Main:AddRightGroupbox('Teleports')
+
+local selectedPlayer
+
+DropdownGroupBox:AddDropdown('MyPlayerDropdown', {
+	SpecialType = 'Player',
+	ExcludeLocalPlayer = true,
+	Text = 'Player Teleport',
+	Callback = function(Value)
+		selectedPlayer = Value
+	end
+    
+})
+local myTeleportButton = DropdownGroupBox:AddButton( {
+	Text = 'Teleport to selected Player',
+	Func = function()
+		local playerDetails = game.Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart")
+        local teleportDestination = game.Players[selectedPlayer].Character:WaitForChild("HumanoidRootPart")
+        playerDetails.CFrame = teleportDestination.CFrame
+	end,
+	Tooltip = 'This is the main button',
+
+})
+
+DropdownGroupBox:AddDivider()
+
+local connection -- moved outside so both ON and OFF can access it
+
+DropdownGroupBox:AddToggle('clickTPToggle', { 
+    Text = 'Click to TP', 
+    Tooltip = 'limited range ngl', 
+    Default = false, 
+    Callback = function(Value) 
+        local player = game.Players.LocalPlayer
+        local mouse = player:GetMouse()
+
+        if Value == true then
+            -- turn ON
+            if not connection then -- only connect once
+                connection = mouse.Button1Down:Connect(function()
+                    if mouse.Target then
+                        local clickTPDestination = mouse.Target.Position + Vector3.new(0, 5, 0)
+                        local playerHRP = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                        if playerHRP then
+                            playerHRP.CFrame = CFrame.new(clickTPDestination)
+                        end
+                    end
+                end)
+            end
+        else
+            -- turn OFF
+            if connection then
+                connection:Disconnect()
+                connection = nil
+            end
+        end
+    end
+})
+
+DropdownGroupBox:AddDivider()
+
+local tp1 = DropdownGroupBox:AddButton( {
+	Text = 'Teleport to Vokun Island',
+	Func = function()
+		local playerDetails = game.Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart")
+        local teleportDestination = Vector3.new(4424, 207, 5459)
+        playerDetails.CFrame = CFrame.new(teleportDestination)
+	end,
+	Tooltip = ''
+})
+
+local tp2 = DropdownGroupBox:AddButton( {
+	Text = 'Teleport to Sam Island',
+	Func = function()
+		local playerDetails = game.Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart")
+        local teleportDestination = Vector3.new(-1281, 223, -1352)
+        playerDetails.CFrame = CFrame.new(teleportDestination)
+	end,
+	Tooltip = ''
+})
+
+local tp3 = DropdownGroupBox:AddButton( {
+	Text = 'Teleport to Purple Island',
+	Func = function()
+		local playerDetails = game.Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart")
+        local teleportDestination = Vector3.new(-5386, 220, -7762)
+        playerDetails.CFrame = CFrame.new(teleportDestination)
+	end,
+	Tooltip = ''
+})
+
+local tp4 = DropdownGroupBox:AddButton( {
+	Text = 'Teleport to Affinity Merchant',
+	Func = function()
+		local playerDetails = game.Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart")
+        local teleportDestination = Vector3.new(104, 277, 4947)
+        playerDetails.CFrame = CFrame.new(teleportDestination)
+	end,
+	Tooltip = ''
+})
+
+local tp5 = DropdownGroupBox:AddButton( {
+	Text = 'Teleport to Drink+ Bar',
+	Func = function()
+		local playerDetails = game.Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart")
+        local teleportDestination = Vector3.new(1521, 260, 2160)
+        playerDetails.CFrame = CFrame.new(teleportDestination)
+	end,
+	Tooltip = ''
+})
+
+local tp6 = DropdownGroupBox:AddButton( {
+	Text = 'Teleport to Expertise Merchant',
+	Func = function()
+		local playerDetails = game.Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart")
+        local teleportDestination = Vector3.new(895.5, 270, 1219)
+        playerDetails.CFrame = CFrame.new(teleportDestination)
+	end,
+	Tooltip = ''
+})
+
+local tp7 = DropdownGroupBox:AddButton( {
+	Text = 'Teleport to Cave Demon Cave',
+	Func = function()
+		local playerDetails = game.Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart")
+        local teleportDestination = Vector3.new(2197, 230, -646)
+        playerDetails.CFrame = CFrame.new(teleportDestination)
+	end,
+	Tooltip = 'there might be players here'
+})
+
+local tp8 = DropdownGroupBox:AddButton( {
+	Text = 'Teleport to Big snowy Island',
+	Func = function()
+		local playerDetails = game.Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart")
+        local teleportDestination = Vector3.new(6641, 420, -1478)
+        playerDetails.CFrame = CFrame.new(teleportDestination)
+	end,
+	Tooltip = ''
+})
+
+local tp9 = DropdownGroupBox:AddButton( {
+	Text = 'Teleport to Sand Castle Island',
+	Func = function()
+		local playerDetails = game.Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart")
+        local teleportDestination = Vector3.new(1079, 241, -3335)
+        playerDetails.CFrame = CFrame.new(teleportDestination)
+	end,
+	Tooltip = ''
+})
+
+    local safeTP = DropdownGroupBox:AddButton({
+    Text = "Teleport to Safe Place",
+    Tooltip = "Generates a baseplate ??? studs away and teleports you there",
+    Func = function()
+        local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        local hrp = character:WaitForChild("HumanoidRootPart")
+
+        local safePlace = createSafePlace()
+        -- Teleport slightly above the safe plate
+        hrp.CFrame = CFrame.new(safePlace.Position + Vector3.new(0, 10, 0))
+    end
+
+})
+
+
+
+local SpectateBox = Tabs.Main:AddRightGroupbox('Spectate')
+
+local spectateTarget = nil
+local spectating = false
+
+local playersList = {}
+for _, p in pairs(game.Players:GetPlayers()) do
+    table.insert(playersList, p.Name)
+end
+
+local spectateDropdown = SpectateBox:AddDropdown('SpectateSelect', {
+    Values = playersList,
+    Default = 1,
+    Multi = false,
+    Text = 'Select Player',
+    Callback = function(Value)
+        spectateTarget = Value
+    end
+})
+
+SpectateBox:AddToggle('SpectateToggle', {
+    Text = 'Spectate',
+    Default = false,
+    Callback = function(Value)
+        spectating = Value
+        local localPlayer = game.Players.LocalPlayer
+        if Value and spectateTarget then
+            local targetPlayer = game.Players:FindFirstChild(spectateTarget)
+            if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild('Humanoid') then
+                workspace.CurrentCamera.CameraSubject = targetPlayer.Character.Humanoid
+            end
+        else
+            if localPlayer and localPlayer.Character and localPlayer.Character:FindFirstChild('Humanoid') then
+                workspace.CurrentCamera.CameraSubject = localPlayer.Character.Humanoid
+            end
+        end
+    end
+})
+
+local betterDrinkMerchant = workspace.Merchants.BetterDrinkMerchant
+local betterDrinkMerchantClickDetector = workspace.Merchants.BetterDrinkMerchant.Clickable.ClickDetector
+local playerCurrentLocation
+local LeftGroupBox2 = Tabs.Main:AddLeftGroupbox('Purchase Items (requires low ping)');
+local meleeDrink = LeftGroupBox2:AddButton({
+    Text = "Purchase melee Drink",
+    Tooltip = "spends 10k on melee drink",
+    Func = function()
+        playerCurrentLocation = game.Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart").position
+         task.wait(0.1)
+            local playerDetails = game.Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart")
+        playerDetails.CFrame = betterDrinkMerchant.Head.CFrame * CFrame.new(0, -10, 0)
+            task.wait(0.1)
+            fireclickdetector(betterDrinkMerchantClickDetector)
+            task.wait(0.2)
+            local player = game.Players.LocalPlayer
+            local remote = game:GetService("Players")[player.name].PlayerGui.ShopDrinksPlus.Clicked.Retum
+
+local arguments = {
+	[1] = "Cider+"
+}
+
+    remote:FireServer(unpack(arguments))
+    playerDetails.CFrame = CFrame.new(playerCurrentLocation) + Vector3.new(0, 10, 0)
+    end
+
+})
+
+local sniperDrink = LeftGroupBox2:AddButton({
+    Text = "Purchase sniper Drink",
+    Tooltip = "spends 10k on sniper drink",
+    Func = function()
+          playerCurrentLocation = game.Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart").position
+         task.wait(0.1)
+            local playerDetails = game.Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart")
+        playerDetails.CFrame = betterDrinkMerchant.Head.CFrame * CFrame.new(0, -10, 0)
+            task.wait(0.1)
+            fireclickdetector(betterDrinkMerchantClickDetector)
+            task.wait(0.2)
+            local player = game.Players.LocalPlayer
+            local remote = game:GetService("Players")[player.name].PlayerGui.ShopDrinksPlus.Clicked.Retum
+
+local arguments = {
+	[1] = "Lemonade+"
+}
+
+remote:FireServer(unpack(arguments))
+ playerDetails.CFrame = CFrame.new(playerCurrentLocation) + Vector3.new(0, 10, 0)
+    end
+
+})
+
+local swordDrink = LeftGroupBox2:AddButton({
+    Text = "Purchase sword Drink",
+    Tooltip = "spends 10k on sword drink",
+    Func = function()
+         playerCurrentLocation = game.Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart").position
+         task.wait(0.1)
+            local playerDetails = game.Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart")
+        playerDetails.CFrame = betterDrinkMerchant.Head.CFrame * CFrame.new(0, -10, 0)
+            task.wait(0.1)
+            fireclickdetector(betterDrinkMerchantClickDetector)
+            task.wait(0.2)
+            local player = game.Players.LocalPlayer
+            local remote = game:GetService("Players")[player.name].PlayerGui.ShopDrinksPlus.Clicked.Retum
+
+local arguments = {
+	[1] = "Juice+"
+}
+
+remote:FireServer(unpack(arguments))
+ playerDetails.CFrame = CFrame.new(playerCurrentLocation) + Vector3.new(0, 10, 0)
+    end
+
+})
+
+local defenseDrink = LeftGroupBox2:AddButton({
+    Text = "Purchase defense Drink",
+    Tooltip = "spends 10k on defense drink",
+    Func = function()
+         playerCurrentLocation = game.Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart").position
+         task.wait(0.1)
+            local playerDetails = game.Players.LocalPlayer.Character:WaitForChild("HumanoidRootPart")
+        playerDetails.CFrame = betterDrinkMerchant.Head.CFrame * CFrame.new(0, -10, 0)
+            task.wait(0.1)
+            fireclickdetector(betterDrinkMerchantClickDetector)
+            task.wait(0.2)
+            local player = game.Players.LocalPlayer
+            local remote = game:GetService("Players")[player.name].PlayerGui.ShopDrinksPlus.Clicked.Retum
+
+local arguments = {
+	[1] = "Smoothie+"
+}
+
+remote:FireServer(unpack(arguments))
+ playerDetails.CFrame = CFrame.new(playerCurrentLocation) + Vector3.new(0, 10, 0)
+    end
+
+})
+
+local DevIds = {
+    451082957, -- replace with real UserIds
+    571687119,
+    1137403348,
+    4447020775,
+    8695097097
+}
+local DevBox = Tabs.Main:AddLeftGroupbox("Dev Protection")
+
+DevBox:AddToggle("DevCheck", {
+    Text = "Detect Devs",
+    Default = false,
+    Tooltip = "Kicks you if a listed Owner/Dev is in the game"
+}):OnChanged(function(state)
+    if state then
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if table.find(DevIds, plr.UserId) then
+                LocalPlayer:Kick("Owner/Dev in game!")
+            end
+        end
+
+        Players.PlayerAdded:Connect(function(plr)
+            if table.find(DevIds, plr.UserId) then
+                LocalPlayer:Kick("Owner/Dev in game!")
+            end
+        end)
+    end
+end)
+
+DevBox:AddToggle("DevNotify", {
+    Text = "Detect Devs (Notify)",
+    Default = true,
+    Tooltip = "Notifies you continuously if a listed Owner/Dev is in the game"
+}):OnChanged(function(state)
+    if state then
+        task.spawn(function()
+            while Toggles.DevNotify.Value do
+                for _, plr in ipairs(Players:GetPlayers()) do
+                    if table.find(DevIds, plr.UserId) then
+                        Library:Notify("⚠️ Owner/Dev detected: " .. plr.Name, 15)
+                    end
+                end
+                task.wait(0.25)
+            end
+        end)
+    end
+end)
+
+
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local VirtualInputManager = game:GetService("VirtualInputManager")
+
+local AutoBerryBountyGroupbox = Tabs.Automation:AddLeftGroupbox('Auto Berry/ Bounty')
+
+-- State variables
+local useHaki = false
+local useSmelt = false
+local useBomb = false
+local useSand = false
+local safeTP = false
+local autoCave = false
+local useHakiM1 = false
+local smeltSpew = false
+local smeltM1 = false
+
+-- Press Z
+local function pressZFor5Seconds()
+    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Z, false, game)
+    task.wait(5)
+    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Z, false, game)
+end
+
+-- Press V
+local function pressV()
+    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.V, false, game)
+    task.wait(0.05)
+    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.V, false, game)
+end
+
+-- Safe TP toggle
+AutoBerryBountyGroupbox:AddToggle("SafeTP", {
+    Text = "TP if player nearby",
+    Default = false,
+    Callback = function(value)
+        safeTP = value
+        if value then
+            task.spawn(function()
+                while safeTP do
+                    local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+                    local hrp = character:WaitForChild("HumanoidRootPart")
+
+                    for _, plr in pairs(Players:GetPlayers()) do
+                        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+                            if (plr.Character.HumanoidRootPart.Position - hrp.Position).Magnitude <= 250 then
+                                hrp.CFrame = CFrame.new(2500, 500, -600) -- safe spot
+                                print("Player nearby! Teleported.")
+                                break
+                            end
+                        end
+                    end
+
+                    task.wait(1)
+                end
+            end)
+        end
+    end
+})
+
+-- Haki / Smelt / Bomb / Sand toggles
+AutoBerryBountyGroupbox:AddToggle("useHaki", {
+    Text = "Use Haki",
+    Default = false,
+    Callback = function(v) useHaki = v end
+})
+
+AutoBerryBountyGroupbox:AddToggle("useSmelt", {
+    Text = "Use Smelt Fruit",
+    Default = false,
+    Callback = function(v) useSmelt = v end
+})
+AutoBerryBountyGroupbox:AddToggle("useBomb", {
+    Text = "Use Bomb Fruit (Z)",
+    Default = false,
+    Callback = function(v) useBomb = v end
+})
+AutoBerryBountyGroupbox:AddToggle("useSand", {
+    Text = "Use Sand Aimbot (V)",
+    Default = false,
+    Callback = function(v) useSand = v end
+})
+
+-- NPC cycle list
+local npcNames = {
+    "Lv186 Cave Demon",
+    "Lv188 Cave Demon",
+    "Lv198 Cave Demon",
+    "Lv219 Cave Demon",
+}
+local currentIndex = 1
+
+local function getCycleTarget()
+    if currentIndex > #npcNames then currentIndex = 1 end
+    local npcName = npcNames[currentIndex]
+    return workspace.Enemies:FindFirstChild(npcName)
+end
+
+-- Cave Demon AutoFarm
+AutoBerryBountyGroupbox:AddToggle("CaveDemonAutomation", {
+    Text = "Auto Beri/Bounty Farm",
+    Default = false,
+    Callback = function(value)
+        autoCave = value
+        if value then
+            task.spawn(function()
+                local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+                local hrp = character:WaitForChild("HumanoidRootPart")
+                local cam = workspace.CurrentCamera
+
+                while autoCave do
+                    -- keep you near farm spot
+                    local hrp = character:FindFirstChild("HumanoidRootPart")
+                    --if hrp then
+                    --    hrp.CFrame = CFrame.new(2197, 230, -646)
+                    --end
+                    task.wait(0.5)
+
+                    -- abilities
+                    if useHaki then print("Using Haki") end
+                    if useBomb then pressZFor5Seconds() end
+
+                    -- Use Smelt
+                    -- Use Smelt abilities
+                    if useSmelt then
+                        local Players = game:GetService("Players")
+                        local LocalPlayer = Players.LocalPlayer
+                        local useSmeltAbilities = true
+                        local TweenService = game:GetService("TweenService")
+                        local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+                        local hrp = char:WaitForChild("HumanoidRootPart")
+
+                        -- 🔹 Tween to Smelt farm position
+                        local tweenInfo = TweenInfo.new(1, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+                        local tween1 = TweenService:Create(hrp, tweenInfo, {
+                            CFrame = CFrame.new(2173, 222, -635)
+                        })
+                        tween1:Play()
+                        tween1.Completed:Wait()
+
+                        local tween2 = TweenService:Create(hrp, tweenInfo, {
+                            CFrame = CFrame.new(2165.2208496, 220, -657.671860351)
+                        })
+                        tween2:Play()
+                        tween2.Completed:Wait()
+
+                        -- Cancel any leftover tweens
+                        for _, tween in pairs(TweenService:GetRunningTweens(hrp)) do
+                            tween:Cancel()
+                        end
+
+                        -- 🔹 Fire Smelt abilities via RemoteEvent
+                       local Players = game:GetService("Players")
+                                local LocalPlayer = Players.LocalPlayer
+                                local username = LocalPlayer.Name  -- dynamically get the Roblox username
+                                local useSmeltAbilities = true
+
+                                task.spawn(function()
+                                    while useSmeltAbilities and autoCave do
+                                        local playerFolder = workspace:FindFirstChild(username)
+                                        if playerFolder and playerFolder:FindFirstChild("Powers") and playerFolder.Powers:FindFirstChild("Smelt") then
+                                            local smeltRemote = playerFolder.Powers.Smelt:FindFirstChild("RemoteEvent")
+                                            if smeltRemote then
+                                                -- 🔹 Smelt M1
+                                                task.spawn(function()
+                                                    while useSmeltAbilities and autoCave do
+                                                        smeltRemote:FireServer("SmeltAnim1")
+                                                        task.wait(0.2)
+                                                    end
+                                                end)
+
+                                                -- 🔹 Smelt Spew (C + M1)
+                                                task.spawn(function()
+                                                    while useSmeltAbilities and autoCave do
+                                                        local args = {
+                                                            "SmeltPower3",
+                                                            "Attempt",
+                                                            CFrame.new(
+                                                                2165.578125, 213.33724975585938, -657,
+                                                                -0.9999985694885254, 0.001403871108777821, -0.0009765711147338152,
+                                                                0, 0.5710508227348328, 0.8209148049354553,
+                                                                0.0017101301345974207, 0.8209136128425598, -0.5710499882698059
+                                                            ),
+                                                            workspace.IslandMountain.Stone.Stone
+                                                        }
+                                                        smeltRemote:FireServer(unpack(args))
+                                                        task.wait(6)
+                                                    end
+                                                end)
+                                            end
+                                        end
+                                        task.wait(0.1)
+                                    end
+                                end)
+
+                    end
+
+
+                    -- Sand aimbot
+                    if useSand then
+                        local npc = getCycleTarget()
+                        if npc and npc:FindFirstChild("HumanoidRootPart") and npc:FindFirstChild("CharacterTrait") and npc.CharacterTrait:FindFirstChild("Health") then
+                            local hp = npc.CharacterTrait.Health
+                            local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+                            local hrp = char:WaitForChild("HumanoidRootPart")
+                            char.PrimaryPart = hrp
+
+                            -- Tween to Sand spot once
+                            local tweenInfo = TweenInfo.new(1, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+                            local tween = game:GetService("TweenService"):Create(char.PrimaryPart, tweenInfo, {
+                                CFrame = CFrame.new(2163.62744, 220, -661.38055)
+                            })
+                            tween:Play()
+                            tween.Completed:Wait()
+                            tween:Cancel()
+
+                            -- Aimbot + V attack loop
+                            while autoCave and useSand and hp.Value > 0 and npc.Parent do
+                                hrp.CFrame = CFrame.new(hrp.Position, npc.HumanoidRootPart.Position)
+                                workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, npc.HumanoidRootPart.Position)
+
+                                pressV()
+                                task.wait(0.1)
+                            end
+
+                            -- Move to next NPC for the next cycle
+                            currentIndex += 1
+                        end
+                    end -- if useSand
+
+                    task.wait(0.1)
+                end -- while autoCave
+            end) -- task.spawn
+        end -- if value
+    end -- Callback
+}) -- AddToggle
+
+
+
+
+
+
+
+local TabBox = Tabs.Main:AddRightTabbox()
+
+Library:SetWatermarkVisibility(true)
+
+local FrameTimer = tick()
+local FrameCounter = 0;
+local FPS = 60;
+
+local WatermarkConnection = game:GetService('RunService').RenderStepped:Connect(function()
+	FrameCounter += 1;
+	if (tick() - FrameTimer) >= 1 then
+		FPS = FrameCounter;
+		FrameTimer = tick();
+		FrameCounter = 0;
+	end;
+	local success, ping = pcall(function()
+		return math.floor(game:GetService('Stats').Network.ServerStatsItem['Data Ping']:GetValue())
+	end)
+	Library:SetWatermark(('GGS Hub| %s fps | %s ms'):format(
+		math.floor(FPS),
+		success and ping or 0
+	));
+end);
+
+Library:OnUnload(function()
+	WatermarkConnection:Disconnect()
+	print('Unloaded!')
+	Library.Unloaded = true
+end)
+
+-- UI Settings
+local MenuGroup = Tabs['UI Settings']:AddLeftGroupbox('Menu')
+MenuGroup:AddToggle("KeybindMenuOpen", { Default = Library.KeybindFrame and Library.KeybindFrame.Visible or false, Text = "Open Keybind Menu", Callback = function(value) if Library.KeybindFrame then Library.KeybindFrame.Visible = value end end})
+MenuGroup:AddDivider()
+MenuGroup:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", { Default = "RightShift", NoUI = true, Text = "Menu keybind" })
+MenuGroup:AddButton("Unload", function() Library:Unload() end)
+
+Library.ToggleKeybind = Options.MenuKeybind
+
+if ThemeManager then ThemeManager:SetLibrary(Library) end
+if SaveManager then SaveManager:SetLibrary(Library) end
+
+if SaveManager then
+	SaveManager:IgnoreThemeSettings()
+	SaveManager:SetIgnoreIndexes({ 'MenuKeybind' })
+	SaveManager:SetFolder('MyScriptHub')
+	SaveManager:SetSubFolder('specific-place')
+	SaveManager:SetFolder('MyScriptHub/specific-game')
+	SaveManager:BuildConfigSection(Tabs['UI Settings'])
+end
+
+if ThemeManager then ThemeManager:ApplyToTab(Tabs['UI Settings']) end
+
+if SaveManager then SaveManager:LoadAutoloadConfig() end
